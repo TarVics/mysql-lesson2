@@ -1,5 +1,6 @@
 # mysql-lesson2
 use tarvic;
+# owu.linkpc.net
 
 -- 1. Вибрати усіх клієнтів, чиє ім'я має менше ніж 6 символів.
 select * from client where LENGTH(FirstName) < 6;
