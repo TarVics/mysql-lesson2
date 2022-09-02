@@ -9,7 +9,7 @@ select * from client where LENGTH(FirstName) < 6;
 select * from department where DepartmentCity = 'Lviv';
 
 -- 3. Вибрати клієнтів з вищою освітою та посортувати по прізвищу.
-select * from client where Education = 'high';
+select * from client where Education = 'high' order by LastName;
 
 -- 4. Виконати сортування у зворотньому порядку над таблицею Заявка і вивести 5 останніх елементів.
 select * from application order by idApplication desc limit 5;
@@ -39,8 +39,8 @@ join department d on d.idDepartment = c.Department_idDepartment
 where d.DepartmentCity = 'Kyiv';
 
 select c.* from client c
-where c.Department_idDepartment in (select d.idDepartment from department d
-                                                          where d.DepartmentCity = 'Kyiv');
+where c.Department_idDepartment
+in (select d.idDepartment from department d where d.DepartmentCity = 'Kyiv');
 
 -- 7. Знайти унікальні імена клієнтів.
 select distinct c.FirstName from client c;
@@ -51,28 +51,29 @@ join application a on c.idClient = a.Client_idClient
 where a.Currency = 'Gryvnia' and a.CreditState='Not returned' and a.Sum>5000;
 
 select c.* from client c
-where c.idClient in (select a.Client_idClient from application a
+where c.idClient in (
+    select a.Client_idClient from application a
     where a.Currency = 'Gryvnia' and a.CreditState='Not returned' and a.Sum>5000);
 
 -- 9. Порахувати кількість клієнтів усіх відділень та лише львівських відділень.
-select count(*), d.DepartmentCity from client c
+select d.idDepartment, d.DepartmentCity, count(*) from client c
 join department d on d.idDepartment = c.Department_idDepartment
-group by d.DepartmentCity;
+group by d.idDepartment
+order by 2;
 
-select count(*), d.DepartmentCity from client c
+select d.idDepartment, d.DepartmentCity, count(*) from client c
 join department d on d.idDepartment = c.Department_idDepartment
-where d.DepartmentCity = 'Lviv';
+where d.DepartmentCity = 'Lviv'
+group by d.idDepartment;
 
 -- 10. Знайти кредити, які мають найбільшу суму для кожного клієнта окремо.
-select c.*, max(
-    case
-        when a.Currency = 'Dollar' then a.Sum * 36.5686
-        when a.Currency = 'Euro' then a.Sum * 36.570
-        else a.Sum
-    end) max_summ
+
+-- Припускаємо, що у стовпці application.Summ міститься сума кредиту у гривні
+-- Якщо, кредит у валюті, то повинен виконуватись пошук курсу валюти на визначену дату
+
+select c.*, max(a.Sum) max_summ
 from client c
 join application a on c.idClient = a.Client_idClient
-where a.CreditState='Not returned'
 group by c.idClient;
 
 -- 11. Визначити кількість заявок на кредит для кожного клієнта.
@@ -82,14 +83,7 @@ join application a on c.idClient = a.Client_idClient
 group by c.idClient;
 
 -- 12. Визначити найбільший та найменший кредити.
-select max(a.sum_gryvna), min(a.sum_gryvna) from (
-    select a.*,
-        case
-            when a.Currency = 'Dollar' then a.Sum * 36.5686
-            when a.Currency = 'Euro' then a.Sum * 36.570
-            else a.Sum
-        end sum_gryvna
-    from application a) a;
+select max(a.Sum), min(a.Sum) from application a;
 
 -- 13. Порахувати кількість кредитів для клієнтів,які мають вищу освіту.
 select c.*, count(*)
@@ -99,12 +93,7 @@ where c.Education='high'
 group by c.idClient;
 
 -- 14. Вивести дані про клієнта, в якого середня сума кредитів найвища.
-select c.*, avg(
-    case
-        when a.Currency = 'Dollar' then a.Sum * 36.5686
-        when a.Currency = 'Euro' then a.Sum * 36.570
-        else a.Sum
-    end) avg_gryvna
+select c.*, avg(a.Sum) avg_gryvna
 from client c
 join application a on c.idClient = a.Client_idClient
 group by c.idClient
@@ -112,11 +101,8 @@ order by avg_gryvna desc
 limit 1;
 
 -- 15. Вивести відділення, яке видало в кредити найбільше грошей
-select d.*, sum(case
-                    when a.Currency = 'Dollar' then a.Sum * 36.5686
-                    when a.Currency = 'Euro' then a.Sum * 36.570
-                    else a.Sum
-    end) sum_gryvna from department d
+select d.*, sum(a.Sum) sum_gryvna
+from department d
 join client c on d.idDepartment = c.Department_idDepartment
 join application a on c.idClient = a.Client_idClient
 group by d.idDepartment
@@ -124,15 +110,12 @@ order by sum_gryvna desc
 limit 1;
 
 -- 16. Вивести відділення, яке видало найбільший кредит.
-select d.*, max(case
-                    when a.Currency = 'Dollar' then a.Sum * 36.5686
-                    when a.Currency = 'Euro' then a.Sum * 36.570
-                    else a.Sum
-    end) sum_gryvna from department d
-                             join client c on d.idDepartment = c.Department_idDepartment
-                             join application a on c.idClient = a.Client_idClient
+select d.*, max(a.Sum) max_gryvna
+from department d
+join client c on d.idDepartment = c.Department_idDepartment
+join application a on c.idClient = a.Client_idClient
 group by d.idDepartment
-order by sum_gryvna desc
+order by max_gryvna desc
 limit 1;
 
 -- 17. Усім клієнтам, які мають вищу освіту, встановити усі їхні кредити у розмірі 6000 грн.
@@ -141,7 +124,7 @@ a.Currency = 'Gryvnia',
 a.Sum = 6000
 where a.Client_idClient in (select c.idClient from client c where c.Education='high');
 
--- 18. Усіх клієнтів київських відділень пересилити до Києва.
+-- 18. Усіх клієнтів київських відділень переселити до Києва.
 update client c set
     c.City = 'Kyiv'
 where c.City <> 'Kyiv' and c.Department_idDepartment in (
@@ -156,11 +139,8 @@ delete from application a where a.Client_idClient in (
 );
 
 -- 21. Знайти львівські відділення, які видали кредитів на загальну суму більше ніж 5000
-select d.*, sum(case
-                    when a.Currency = 'Dollar' then a.Sum * 36.5686
-                    when a.Currency = 'Euro' then a.Sum * 36.570
-                    else a.Sum
-    end) sum_gryvna from department d
+select d.*, sum(a.Sum) sum_gryvna
+from department d
 join client c on d.idDepartment = c.Department_idDepartment
 join application a on c.idClient = a.Client_idClient
 where d.DepartmentCity = 'Lviv'
@@ -168,56 +148,29 @@ group by d.idDepartment
 having sum_gryvna > 5000;
 
 -- 22. Знайти клієнтів, які повністю погасили кредити на суму більше ніж 5000
-select c.*, sum(case
-                    when a.Currency = 'Dollar' then a.Sum * 36.5686
-                    when a.Currency = 'Euro' then a.Sum * 36.570
-                    else a.Sum
-    end) sum_gryvna
-from client c
-join application a on c.idClient = a.Client_idClient
-where a.CreditState='Returned'
-group by c.idClient
-having sum_gryvna > 5000;
+select c.*
+  from client c
+ where c.idClient in (
+   select a.Client_idClient from application a where a.CreditState='Returned' and a.Sum > 5000
+ );
 
 -- 23. Знайти максимальний неповернений кредит.
-select max(case
-               when a.Currency = 'Dollar' then a.Sum * 36.5686
-               when a.Currency = 'Euro' then a.Sum * 36.570
-               else a.Sum
-    end) max_gryvna
+select max(a.Sum) max_gryvna
 from application a
 where a.CreditState='Not returned';
 
 -- 24. Знайти клієнта, сума кредиту якого найменша
-select c.*, sum(case
-                    when a.Currency = 'Dollar' then a.Sum * 36.5686
-                    when a.Currency = 'Euro' then a.Sum * 36.570
-                    else a.Sum
-    end) sum_gryvna
-from client c
+select c.*, min(a.Sum) min_gryvna
+ from client c
  join application a on c.idClient = a.Client_idClient
 group by c.idClient
-order by sum_gryvna
+order by min_gryvna
 limit 1;
 
 -- 25. Знайти кредити, сума яких більша за середнє значення усіх кредитів
 select a.*
   from application a
- where
-     case
-       when a.Currency = 'Dollar' then a.Sum * 36.5686
-       when a.Currency = 'Euro' then a.Sum * 36.570
-       else a.Sum
-     end > (
-        select
-            avg(
-              case
-                when a.Currency = 'Dollar' then a.Sum * 36.5686
-                when a.Currency = 'Euro' then a.Sum * 36.570
-                else a.Sum
-              end) avg_gryvna
-        from application a
-    );
+ where a.Sum > (select avg(a.Sum) from application a);
 
 -- 26. Знайти клієнтів, які є з того самого міста, що і клієнт, який взяв найбільшу кількість кредитів
 select c.*
