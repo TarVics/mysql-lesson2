@@ -46,14 +46,18 @@ in (select d.idDepartment from department d where d.DepartmentCity = 'Kyiv');
 select distinct c.FirstName from client c;
 
 -- 8. Вивести дані про клієнтів, які мають кредит більше ніж на 5000 гривень.
+
+-- Припускаємо, що у стовпці application.Summ міститься сума кредиту у гривні
+-- Якщо, кредит у валюті, то повинен виконуватись пошук курсу валюти на визначену дату
+
 select c.* from client c
 join application a on c.idClient = a.Client_idClient
-where a.Currency = 'Gryvnia' and a.CreditState='Not returned' and a.Sum>5000;
+where a.CreditState='Not returned' and a.Sum>5000;
 
 select c.* from client c
 where c.idClient in (
     select a.Client_idClient from application a
-    where a.Currency = 'Gryvnia' and a.CreditState='Not returned' and a.Sum>5000);
+    where a.CreditState='Not returned' and a.Sum>5000);
 
 -- 9. Порахувати кількість клієнтів усіх відділень та лише львівських відділень.
 select d.idDepartment, d.DepartmentCity, count(*) from client c
@@ -67,10 +71,6 @@ where d.DepartmentCity = 'Lviv'
 group by d.idDepartment;
 
 -- 10. Знайти кредити, які мають найбільшу суму для кожного клієнта окремо.
-
--- Припускаємо, що у стовпці application.Summ міститься сума кредиту у гривні
--- Якщо, кредит у валюті, то повинен виконуватись пошук курсу валюти на визначену дату
-
 select c.*, max(a.Sum) max_summ
 from client c
 join application a on c.idClient = a.Client_idClient
